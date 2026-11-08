@@ -408,6 +408,33 @@ export function retryRun(id: string): WorkflowRunRecord | null {
   return run
 }
 
+export function recordWorkflowRun(
+  run: Omit<WorkflowRunRecord, 'id'>
+): WorkflowRunRecord {
+  const db = ensureDb()
+  const record: WorkflowRunRecord = {
+    ...run,
+    id: `run-${Date.now()}`,
+  }
+
+  db.runs = db.runs || []
+  db.runs.unshift(record)
+
+  db.auditEvents.unshift({
+    id: `aud-${Date.now()}`,
+    actor: record.agentCode || 'n8n Workflow',
+    action: `WORKFLOW_${record.status.toUpperCase()}`,
+    targetType: 'RUN',
+    targetId: record.id,
+    details: `${record.workflowName} (${record.executionId}) finished with status: ${record.status}`,
+    timestamp: new Date().toISOString(),
+  })
+
+  writeDb(db)
+  return record
+}
+
+
 // ========================
 // Audit Events
 // ========================

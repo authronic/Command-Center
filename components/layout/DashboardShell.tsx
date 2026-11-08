@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import MobileDrawer from './MobileDrawer'
+import DashboardCopilot from '@/components/copilot/DashboardCopilot'
 
 interface DashboardShellProps {
   user?: { name?: string | null; email?: string | null }
@@ -37,6 +38,10 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
           {children}
         </main>
       </div>
+
+      {/* Autonomous AI Operations Copilot */}
+      <DashboardCopilot />
     </div>
   )
 }
+
