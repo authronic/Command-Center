@@ -74,13 +74,20 @@ export interface SalesLeadRecord {
   id: string
   company: string
   contactName: string
-  market: 'Qatar' | 'Dubai' | 'KSA' | 'Global'
+  contactTitle?: string
+  city: 'Dubai' | 'Doha' | 'Riyadh' | 'Other'
+  country: 'UAE' | 'Qatar' | 'Saudi Arabia' | 'GCC'
+  businessType: string
+  stage: 'Researching' | 'Qualified' | 'Contact Approved' | 'Discovery' | 'Proposal' | 'Won' | 'Lost'
   dealSize: string
-  stage: 'Lead Inbound' | 'Discovery' | 'Proposal Sent' | 'Negotiation' | 'Won' | 'Lost'
-  source: string
-  lastContact: string
+  fitScore: number
+  painHypothesis: string
   nextAction: string
+  lastTouch: string
+  createdAt?: string
+  updatedAt?: string
 }
+
 
 export type TopicFormat = 'static' | 'carousel' | 'video' | 'skip'
 

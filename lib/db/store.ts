@@ -8,6 +8,7 @@ import {
   ContentBatchRecord,
   ResearchTopicRecord,
   ScheduledPostRecord,
+  SalesLeadRecord,
 } from './types'
 
 // Data file path (persisted in project data directory or /tmp in serverless)
@@ -25,8 +26,10 @@ interface DatabaseSchema {
   auditEvents: AuditEventRecord[]
   batches: ContentBatchRecord[]
   scheduledPosts: ScheduledPostRecord[]
+  prospects: SalesLeadRecord[]
   lastSyncedAt?: string
 }
+
 
 
 const initialSeed: DatabaseSchema = {
@@ -347,7 +350,90 @@ const initialSeed: DatabaseSchema = {
       status: 'draft',
     },
   ],
+  prospects: [
+    {
+      id: 'pros-1',
+      company: 'Al Mirqab Luxury Real Estate',
+      contactName: 'Tariq Al-Mansoor',
+      contactTitle: 'Managing Partner',
+      city: 'Doha',
+      country: 'Qatar',
+      businessType: 'Independent Luxury Real Estate Agency',
+      stage: 'Discovery',
+      dealSize: '$8,500/mo',
+      fitScore: 4.8,
+      painHypothesis: 'Weekend inquiry drop-off: off-plan leads on property portals wait >3h for initial WhatsApp qualification.',
+      nextAction: 'Discovery call with Managing Partner on Tuesday at 4:00 PM AST',
+      lastTouch: 'Yesterday · Intro confirmed',
+      createdAt: '2026-11-06T12:00:00.000Z',
+    },
+    {
+      id: 'pros-2',
+      company: 'Palm Marina Off-Plan Group',
+      contactName: 'Kareem Haddad',
+      contactTitle: 'Head of Sales Operations',
+      city: 'Dubai',
+      country: 'UAE',
+      businessType: 'High-volume Off-Plan Brokerage',
+      stage: 'Qualified',
+      dealSize: '$12,000/mo',
+      fitScore: 4.6,
+      painHypothesis: 'Manual CRM data entry between Bayut, Property Finder and local spreadsheets causing double-booked viewings.',
+      nextAction: 'Send customized speed-to-lead automation architecture diagram',
+      lastTouch: '2 days ago · Portal analysis verified',
+      createdAt: '2026-11-05T14:30:00.000Z',
+    },
+    {
+      id: 'pros-3',
+      company: 'The Pearl Residential Leasing',
+      contactName: 'Noor El-Din',
+      contactTitle: 'Operations Director',
+      city: 'Doha',
+      country: 'Qatar',
+      businessType: 'Boutique Residential & Villa Leasing',
+      stage: 'Proposal',
+      dealSize: '$6,000/mo',
+      fitScore: 4.4,
+      painHypothesis: 'High agent turnover in outbound SDR team; evaluating 24/7 bilingual AI WhatsApp concierge.',
+      nextAction: 'Review commercial proposal and SLA contract',
+      lastTouch: '3 days ago · Proposal sent',
+      createdAt: '2026-11-03T09:15:00.000Z',
+    },
+    {
+      id: 'pros-4',
+      company: 'Downtown Prime Realty',
+      contactName: 'Zaid Al-Fayez',
+      contactTitle: 'Founder & CEO',
+      city: 'Dubai',
+      country: 'UAE',
+      businessType: 'Boutique Downtown Dubai Agency',
+      stage: 'Contact Approved',
+      dealSize: '$7,200/mo',
+      fitScore: 4.2,
+      painHypothesis: 'Lost international buyer inquiries arriving at 2 AM GST during European and Asian market hours.',
+      nextAction: 'Executive intro email scheduled for Wednesday morning',
+      lastTouch: '4 days ago · Market intake',
+      createdAt: '2026-11-02T16:00:00.000Z',
+    },
+    {
+      id: 'pros-5',
+      company: 'Diriyah Heritage Estates',
+      contactName: 'Sultan Al-Otaibi',
+      contactTitle: 'VP Business Development',
+      city: 'Riyadh',
+      country: 'Saudi Arabia',
+      businessType: 'Luxury Giga-project Brokerage',
+      stage: 'Researching',
+      dealSize: '$15,000/mo',
+      fitScore: 4.5,
+      painHypothesis: 'Scaling inquiry triage for Riyadh Season new residential phase launches.',
+      nextAction: 'Verify commercial license on Saudi Balady registry',
+      lastTouch: '5 days ago · Hypothesis logged',
+      createdAt: '2026-11-01T11:00:00.000Z',
+    },
+  ],
 }
+
 
 
 function ensureDb(): DatabaseSchema {
@@ -687,4 +773,96 @@ export function updateScheduledPostStatus(
   writeDb(db)
   return post
 }
+
+// ========================
+// Sales CRM Operations (Phase 4)
+// ========================
+export function getProspects(): SalesLeadRecord[] {
+  const db = ensureDb()
+  return db.prospects || []
+}
+
+export function createProspect(
+  prospect: Omit<SalesLeadRecord, 'id' | 'createdAt' | 'updatedAt'>
+): SalesLeadRecord {
+  const db = ensureDb()
+  const record: SalesLeadRecord = {
+    ...prospect,
+    id: `pros-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+
+  db.prospects = db.prospects || []
+  db.prospects.unshift(record)
+
+  db.auditEvents.unshift({
+    id: `aud-${Date.now()}`,
+    actor: 'Authronic Admin',
+    action: 'CREATE_PROSPECT',
+    targetType: 'PROSPECT',
+    targetId: record.id,
+    details: `Added ${record.company} (${record.city}) to CRM with deal size ${record.dealSize}`,
+    timestamp: new Date().toISOString(),
+  })
+
+  writeDb(db)
+  return record
+}
+
+export function updateProspect(
+  id: string,
+  updates: Partial<SalesLeadRecord>
+): SalesLeadRecord | null {
+  const db = ensureDb()
+  db.prospects = db.prospects || []
+  const index = db.prospects.findIndex(p => p.id === id)
+  if (index === -1) return null
+
+  const oldStage = db.prospects[index].stage
+
+  db.prospects[index] = {
+    ...db.prospects[index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  }
+
+  if (updates.stage && updates.stage !== oldStage) {
+    db.auditEvents.unshift({
+      id: `aud-${Date.now()}`,
+      actor: 'Authronic Admin',
+      action: 'PROSPECT_STAGE_CHANGE',
+      targetType: 'PROSPECT',
+      targetId: id,
+      details: `${db.prospects[index].company} stage changed: ${oldStage} → ${updates.stage}`,
+      timestamp: new Date().toISOString(),
+    })
+  }
+
+  writeDb(db)
+  return db.prospects[index]
+}
+
+export function deleteProspect(id: string): boolean {
+  const db = ensureDb()
+  db.prospects = db.prospects || []
+  const originalLength = db.prospects.length
+  db.prospects = db.prospects.filter(p => p.id !== id)
+
+  if (db.prospects.length < originalLength) {
+    db.auditEvents.unshift({
+      id: `aud-${Date.now()}`,
+      actor: 'Authronic Admin',
+      action: 'DELETE_PROSPECT',
+      targetType: 'PROSPECT',
+      targetId: id,
+      details: `Removed prospect ${id} from CRM`,
+      timestamp: new Date().toISOString(),
+    })
+    writeDb(db)
+    return true
+  }
+  return false
+}
+
 
