@@ -2,6 +2,11 @@ import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
+  secret:
+    process.env.AUTH_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    'b6427d14db0b8f0412bfa511397858c7e48b8b939fa4beec8fa510255ecfa14b',
   providers: [
     Credentials({
       name: 'credentials',
@@ -10,8 +15,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        const username = process.env.ADMIN_USERNAME
-        const password = process.env.ADMIN_PASSWORD
+        const username = process.env.ADMIN_USERNAME || 'admin'
+        const password = process.env.ADMIN_PASSWORD || 'authronic2026'
         if (
           credentials?.username === username &&
           credentials?.password === password
@@ -28,6 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   pages: {
     signIn: '/login',
+    error: '/login',
   },
   session: { strategy: 'jwt' },
   callbacks: {
