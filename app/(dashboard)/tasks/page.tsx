@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   CheckSquare,
   Plus,
@@ -11,88 +11,96 @@ import {
   Filter,
   Trash2,
   AlertTriangle,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react'
-
-interface Task {
-  id: string
-  title: string
-  priority: 'high' | 'medium' | 'low'
-  status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'overdue'
-  dueDate: string
-  category: 'Content' | 'Sales' | 'Infrastructure'
-}
-
-const initialTasks: Task[] = [
-  {
-    id: 't-1',
-    title: 'Verify Qatar brokerages regulatory licensing requirements (Doha market)',
-    priority: 'high',
-    status: 'overdue',
-    dueDate: 'Yesterday',
-    category: 'Sales',
-  },
-  {
-    id: 't-2',
-    title: 'Deploy HeyGen API render webhook & test callback signatures',
-    priority: 'medium',
-    status: 'blocked',
-    dueDate: 'Pending API Key',
-    category: 'Infrastructure',
-  },
-  {
-    id: 't-3',
-    title: 'Review static post drafts for Dubai Real Estate lead conversion',
-    priority: 'high',
-    status: 'in_progress',
-    dueDate: 'Today · 5:00 PM',
-    category: 'Content',
-  },
-  {
-    id: 't-4',
-    title: 'Scaffold Authronic Command Center shell, brand tokens & NextAuth session',
-    priority: 'high',
-    status: 'completed',
-    dueDate: 'Today',
-    category: 'Infrastructure',
-  },
-]
+import { TaskRecord } from '@/lib/db/types'
 
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const [tasks, setTasks] = useState<TaskRecord[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'active' | 'overdue' | 'completed'>('all')
   const [isAdding, setIsAdding] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskCategory, setNewTaskCategory] = useState<'Content' | 'Sales' | 'Infrastructure'>('Content')
+  const [submitting, setSubmitting] = useState(false)
 
-  function toggleTask(id: string) {
-    setTasks(prev =>
-      prev.map(t =>
-        t.id === id
-          ? { ...t, status: t.status === 'completed' ? 'in_progress' : 'completed' }
-          : t
-      )
-    )
-  }
-
-  function deleteTask(id: string) {
-    setTasks(prev => prev.filter(t => t.id !== id))
-  }
-
-  function handleAddTask(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newTaskTitle.trim()) return
-
-    const newTask: Task = {
-      id: `t-${Date.now()}`,
-      title: newTaskTitle.trim(),
-      priority: 'medium',
-      status: 'pending',
-      dueDate: 'Today',
-      category: newTaskCategory,
+  async function loadTasks() {
+    try {
+      const res = await fetch('/api/tasks')
+      if (res.ok) {
+        const data = await res.json()
+        setTasks(data.tasks || [])
+      }
+    } catch (err) {
+      console.error('Error fetching tasks:', err)
+    } finally {
+      setLoading(false)
     }
-    setTasks([newTask, ...tasks])
-    setNewTaskTitle('')
-    setIsAdding(false)
+  }
+
+  useEffect(() => {
+    loadTasks()
+  }, [])
+
+  async function toggleTask(id: string, currentStatus: string) {
+    const nextStatus = currentStatus === 'completed' ? 'in_progress' : 'completed'
+    // Optimistic UI update
+    setTasks(prev =>
+      prev.map(t => (t.id === id ? { ...t, status: nextStatus as any } : t))
+    )
+
+    try {
+      await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      })
+    } catch (err) {
+      console.error('Failed to toggle task:', err)
+      loadTasks() // Revert on error
+    }
+  }
+
+  async function deleteTask(id: string) {
+    setTasks(prev => prev.filter(t => t.id !== id))
+    try {
+      await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+    } catch (err) {
+      console.error('Failed to delete task:', err)
+      loadTasks()
+    }
+  }
+
+  async function handleAddTask(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newTaskTitle.trim() || submitting) return
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTaskTitle.trim(),
+          category: newTaskCategory,
+          priority: 'medium',
+          status: 'pending',
+          dueAt: 'Today',
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setTasks(prev => [data.task, ...prev])
+        setNewTaskTitle('')
+        setIsAdding(false)
+      }
+    } catch (err) {
+      console.error('Failed to create task:', err)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const filteredTasks = tasks.filter(t => {
@@ -120,21 +128,31 @@ export default function TasksPage() {
             My Tasks
           </h1>
           <p className="text-sm sm:text-base" style={{ color: 'var(--text-secondary)' }}>
-            Personal task queue, priorities, and workflow reminders.
+            Personal task queue, priorities, and workflow reminders. Backed by persistent storage.
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAdding(!isAdding)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 self-start sm:self-auto cursor-pointer"
-          style={{
-            background: 'var(--brand-orange)',
-            color: '#101110',
-          }}
-        >
-          <Plus size={16} />
-          <span>{isAdding ? 'Cancel' : 'New Task'}</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={loadTasks}
+            className="p-2.5 rounded-lg text-xs font-semibold hover:bg-white/5 transition-colors cursor-pointer"
+            style={{ border: '1px solid var(--border-soft)', color: 'var(--text-secondary)' }}
+            title="Refresh tasks from database"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 cursor-pointer"
+            style={{
+              background: 'var(--brand-orange)',
+              color: '#101110',
+            }}
+          >
+            <Plus size={16} />
+            <span>{isAdding ? 'Cancel' : 'New Task'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Add Task Form (collapsible) */}
@@ -148,7 +166,7 @@ export default function TasksPage() {
           }}
         >
           <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Create Personal Task
+            Create Persistent Task
           </h3>
           <div className="flex flex-col sm:flex-row gap-3">
             <input
@@ -181,10 +199,12 @@ export default function TasksPage() {
             </select>
             <button
               type="submit"
-              className="h-10 px-4 rounded-lg text-xs font-semibold"
+              disabled={submitting}
+              className="h-10 px-5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
               style={{ background: 'var(--brand-orange)', color: '#101110' }}
             >
-              Add Task
+              {submitting && <Loader2 size={13} className="animate-spin" />}
+              <span>Save to DB</span>
             </button>
           </div>
         </form>
@@ -201,7 +221,7 @@ export default function TasksPage() {
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key as any)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 cursor-pointer"
             style={{
               background: filter === tab.key ? 'rgba(247, 143, 30, 0.12)' : 'var(--surface-1)',
               color: filter === tab.key ? 'var(--brand-orange)' : 'var(--text-secondary)',
@@ -222,7 +242,12 @@ export default function TasksPage() {
           borderColor: 'var(--border-soft)',
         }}
       >
-        {filteredTasks.length === 0 ? (
+        {loading ? (
+          <div className="p-12 text-center text-sm flex items-center justify-center gap-2" style={{ color: 'var(--text-muted)' }}>
+            <Loader2 size={16} className="animate-spin text-[var(--brand-orange)]" />
+            <span>Loading tasks from database...</span>
+          </div>
+        ) : filteredTasks.length === 0 ? (
           <div className="p-12 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
             No tasks found in this view.
           </div>
@@ -236,8 +261,8 @@ export default function TasksPage() {
               >
                 <div className="flex items-start gap-3.5 min-w-0">
                   <button
-                    onClick={() => toggleTask(task.id)}
-                    className="p-1 rounded mt-0.5 transition-transform active:scale-90"
+                    onClick={() => toggleTask(task.id, task.status)}
+                    className="p-1 rounded mt-0.5 transition-transform active:scale-90 cursor-pointer"
                     aria-label={isCompleted ? 'Mark incomplete' : 'Mark completed'}
                   >
                     {isCompleted ? (
@@ -283,7 +308,7 @@ export default function TasksPage() {
                         ) : (
                           <Clock size={12} />
                         )}
-                        {task.dueDate}
+                        {task.dueAt}
                       </span>
                     </div>
                   </div>
@@ -291,7 +316,7 @@ export default function TasksPage() {
 
                 <button
                   onClick={() => deleteTask(task.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/10 hover:text-red-400 transition-all flex-shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/10 hover:text-red-400 transition-all flex-shrink-0 cursor-pointer"
                   style={{ color: 'var(--text-muted)' }}
                   aria-label="Delete task"
                 >

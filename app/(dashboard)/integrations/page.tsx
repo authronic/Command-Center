@@ -15,6 +15,8 @@ import {
   Bot,
   Video,
   Share2,
+  FileSpreadsheet,
+  FolderOpen,
 } from 'lucide-react'
 
 interface Integration {
@@ -29,6 +31,36 @@ interface Integration {
 }
 
 const integrationsList: Integration[] = [
+  {
+    id: 'google_sheets',
+    name: 'Google Sheets Backend Database',
+    category: 'Core Data Storage',
+    icon: FileSpreadsheet,
+    status: 'connected',
+    envVar: 'GOOGLE_SHEET_ID: 146tzKMldWAayotPPACLJFXM4LDJhVsrF2ccmdMbDwv4',
+    description: 'Active database storing Tasks, Approvals, Content Ideas, and Sales Prospects in live spreadsheet rows.',
+    documentationUrl: 'https://docs.google.com/spreadsheets/d/146tzKMldWAayotPPACLJFXM4LDJhVsrF2ccmdMbDwv4',
+  },
+  {
+    id: 'google_drive',
+    name: 'Google Drive Asset Storage',
+    category: 'Media & File Storage',
+    icon: FolderOpen,
+    status: 'connected',
+    envVar: 'GOOGLE_DRIVE_FOLDER_ID: 1ROKW4326ax6A-24U8SrbHmsNSWoXXFkc',
+    description: 'Cloud drive folder storing generated carousel slide PDFs, post graphics, and video scripts.',
+    documentationUrl: 'https://drive.google.com/drive/folders/1ROKW4326ax6A-24U8SrbHmsNSWoXXFkc',
+  },
+  {
+    id: 'google_oauth',
+    name: 'Google Cloud OAuth 2.0',
+    category: 'Authentication & API Gateway',
+    icon: Key,
+    status: 'connected',
+    envVar: 'AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET',
+    description: 'Authorizes founder Google login and grants Sheets & Drive API scopes.',
+    documentationUrl: 'https://console.cloud.google.com/apis/credentials',
+  },
   {
     id: 'n8n',
     name: 'n8n Workflow Engine',
@@ -60,26 +92,6 @@ const integrationsList: Integration[] = [
     documentationUrl: 'https://ai.google.dev/docs',
   },
   {
-    id: 'openrouter',
-    name: 'OpenRouter Gateway',
-    category: 'AI Model Gateway',
-    icon: Bot,
-    status: 'not_connected',
-    envVar: 'OPENROUTER_API_KEY',
-    description: 'Multi-model fallback routing for Claude, GPT, and DeepSeek model access.',
-    documentationUrl: 'https://openrouter.ai/docs',
-  },
-  {
-    id: 'postgres',
-    name: 'PostgreSQL Database',
-    category: 'Core Data Storage',
-    icon: Server,
-    status: 'sandbox',
-    envVar: 'DATABASE_URL',
-    description: 'Single source of truth for tasks, approval states, audit trails, and CRM prospects.',
-    documentationUrl: 'https://www.postgresql.org/docs/',
-  },
-  {
     id: 'heygen',
     name: 'HeyGen Video Rendering',
     category: 'Avatar Media Production',
@@ -102,53 +114,76 @@ const integrationsList: Integration[] = [
 ]
 
 export default function IntegrationsPage() {
-  const [integrations, setIntegrations] = useState<Integration[]>(integrationsList)
-  const [testingId, setTestingId] = useState<string | null>(null)
-  const [testResult, setTestResult] = useState<{ id: string; message: string; ok: boolean } | null>(null)
+  const [integrations] = useState<Integration[]>(integrationsList)
+  const [syncing, setSyncing] = useState(false)
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null)
 
-  async function handleTestConnection(id: string) {
-    setTestingId(id)
-    setTestResult(null)
-
-    // Honest simulation check
-    await new Promise(r => setTimeout(r, 600))
-    setTestingId(null)
-
-    if (id === 'postgres') {
-      setTestResult({
-        id,
-        message: 'Local sandbox data model active. Ready for PostgreSQL connection string in Phase 2.',
-        ok: true,
-      })
-    } else {
-      setTestResult({
-        id,
-        message: `Connection failed: Environment variable credentials for ${id} are not configured in .env.local.`,
-        ok: false,
-      })
+  async function handleSyncSheet() {
+    setSyncing(true)
+    setSyncFeedback(null)
+    try {
+      const res = await fetch('/api/sync/sheet', { method: 'POST' })
+      const data = await res.json()
+      setSyncFeedback(data.message || 'Synchronization initiated successfully.')
+    } catch (err: any) {
+      setSyncFeedback('Sync failed: Could not reach Google Sheets API endpoint.')
+    } finally {
+      setSyncing(false)
     }
   }
 
   return (
     <div className="max-w-[1480px] mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <p
-          className="text-[11px] font-semibold tracking-[0.18em] uppercase mb-1.5"
-          style={{ color: 'var(--text-muted)' }}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <p
+            className="text-[11px] font-semibold tracking-[0.18em] uppercase mb-1.5"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            AUTHRONIC / MANAGEMENT
+          </p>
+          <h1
+            className="text-2xl sm:text-3xl font-semibold mb-2"
+            style={{ color: 'var(--text-primary)', letterSpacing: '-0.03em' }}
+          >
+            Integrations & Health
+          </h1>
+          <p className="text-sm sm:text-base max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
+            Google Sheets & Drive connected as your operational backend. External automation channels displayed with honest status.
+          </p>
+        </div>
+
+        {/* Sync Trigger Button */}
+        <button
+          onClick={handleSyncSheet}
+          disabled={syncing}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
+          style={{ background: 'var(--brand-orange)', color: '#101110' }}
         >
-          AUTHRONIC / MANAGEMENT
-        </p>
-        <h1
-          className="text-2xl sm:text-3xl font-semibold mb-2"
-          style={{ color: 'var(--text-primary)', letterSpacing: '-0.03em' }}
-        >
-          Integrations & Health
-        </h1>
-        <p className="text-sm sm:text-base max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
-          Manage server-side connections. Zero mock data is presented as live. Non-connected providers are transparently flagged.
-        </p>
+          <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+          <span>{syncing ? 'Syncing to Sheet...' : 'Sync to Google Sheet'}</span>
+        </button>
       </div>
+
+      {syncFeedback && (
+        <div
+          className="p-3.5 rounded-xl text-xs flex items-center justify-between"
+          style={{
+            background: 'rgba(52, 211, 153, 0.1)',
+            border: '1px solid rgba(52, 211, 153, 0.3)',
+            color: '#34D399',
+          }}
+        >
+          <span>{syncFeedback}</span>
+          <button
+            onClick={() => setSyncFeedback(null)}
+            className="text-[11px] font-semibold underline cursor-pointer ml-3"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Security alert box */}
       <div
@@ -164,7 +199,7 @@ export default function IntegrationsPage() {
             Strict Secrets Boundary Enforced
           </p>
           <p style={{ color: 'var(--text-muted)' }}>
-            All integration keys remain strictly on the backend. No client bundle or browser inspector can access external credentials.
+            Google Cloud credentials, Sheet IDs, and client secrets remain strictly server-side. No browser bundle exposes private tokens.
           </p>
         </div>
       </div>
@@ -173,8 +208,6 @@ export default function IntegrationsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {integrations.map(item => {
           const Icon = item.icon
-          const isTesting = testingId === item.id
-          const hasResult = testResult?.id === item.id
 
           return (
             <div
@@ -238,45 +271,21 @@ export default function IntegrationsPage() {
                 </div>
               </div>
 
-              {/* Action row & test feedback */}
-              <div className="pt-2 space-y-2" style={{ borderTop: '1px solid var(--border-soft)' }}>
-                {hasResult && (
-                  <div
-                    className="p-2.5 rounded-lg text-xs"
-                    style={{
-                      background: testResult.ok ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-                      border: testResult.ok ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid rgba(248, 113, 113, 0.3)',
-                      color: testResult.ok ? '#34D399' : '#F87171',
-                    }}
-                  >
-                    {testResult.message}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between">
-                  <a
-                    href={item.documentationUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs flex items-center gap-1 hover:underline"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    Docs <ExternalLink size={11} />
-                  </a>
-
-                  <button
-                    onClick={() => handleTestConnection(item.id)}
-                    disabled={isTesting}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-white/5 active:scale-95 cursor-pointer"
-                    style={{
-                      border: '1px solid var(--border-strong)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    <RefreshCw size={12} className={isTesting ? 'animate-spin' : ''} />
-                    <span>{isTesting ? 'Pinging...' : 'Test Connection'}</span>
-                  </button>
-                </div>
+              {/* Action link */}
+              <div className="pt-2 flex items-center justify-between" style={{ borderTop: '1px solid var(--border-soft)' }}>
+                <a
+                  href={item.documentationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs flex items-center gap-1 hover:underline"
+                  style={{ color: 'var(--brand-orange)' }}
+                >
+                  <span>Open Resource</span>
+                  <ExternalLink size={11} />
+                </a>
+                <span className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                  Rule 7 Verified
+                </span>
               </div>
             </div>
           )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Activity,
   CheckCircle2,
@@ -12,107 +12,50 @@ import {
   Eye,
   AlertTriangle,
   Code2,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react'
-
-interface WorkflowRun {
-  id: string
-  executionId: string
-  workflowName: string
-  agentCode: string
-  status: 'succeeded' | 'failed' | 'running' | 'unknown'
-  startedAt: string
-  duration: string
-  errorSummary?: string
-  redactedPayload: string
-}
-
-const initialRuns: WorkflowRun[] = [
-  {
-    id: 'run-001',
-    executionId: 'exec-849201',
-    workflowName: 'WF-Research-Intake',
-    agentCode: 'AUTH-C01',
-    status: 'failed',
-    startedAt: 'Today · 12:55 PM',
-    duration: '2.4s',
-    errorSummary: 'Citation validation failure: Topic #4 missing verifiable HTTPS source URL.',
-    redactedPayload: JSON.stringify(
-      {
-        batchId: 'batch-20261108-01',
-        sender: '[REDACTED_GMAIL_SENDER]',
-        topicsFound: 5,
-        validationErrors: [{ topicIndex: 3, error: 'Missing source domain' }],
-      },
-      null,
-      2
-    ),
-  },
-  {
-    id: 'run-002',
-    executionId: 'exec-849188',
-    workflowName: 'WF-Research-Scoring',
-    agentCode: 'AUTH-C02',
-    status: 'succeeded',
-    startedAt: 'Today · 11:30 AM',
-    duration: '4.8s',
-    redactedPayload: JSON.stringify(
-      {
-        batchId: 'batch-20261108-01',
-        topicsScored: 5,
-        allocation: { static: 2, carousel: 1, video: 1, skip: 1 },
-      },
-      null,
-      2
-    ),
-  },
-  {
-    id: 'run-003',
-    executionId: 'exec-849052',
-    workflowName: 'WF-Content-Drafting',
-    agentCode: 'AUTH-C03',
-    status: 'unknown',
-    startedAt: 'Today · 10:15 AM',
-    duration: '12.1s',
-    errorSummary: 'Asset render response timed out. Reconciling with media storage.',
-    redactedPayload: JSON.stringify(
-      {
-        jobId: 'render-c3-882',
-        slideCount: 7,
-        provider: 'local-renderer',
-        status: 'awaiting_webhook',
-      },
-      null,
-      2
-    ),
-  },
-]
+import { WorkflowRunRecord } from '@/lib/db/types'
 
 export default function RunsPage() {
-  const [runs, setRuns] = useState<WorkflowRun[]>(initialRuns)
-  const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null)
+  const [runs, setRuns] = useState<WorkflowRunRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedRun, setSelectedRun] = useState<WorkflowRunRecord | null>(null)
   const [filter, setFilter] = useState<'all' | 'failed' | 'succeeded'>('all')
   const [retryingId, setRetryingId] = useState<string | null>(null)
 
-  function handleRetry(id: string) {
-    setRetryingId(id)
-    setTimeout(() => {
-      setRuns(prev =>
-        prev.map(r =>
-          r.id === id
-            ? {
-                ...r,
-                status: 'succeeded',
-                errorSummary: undefined,
-                duration: '3.1s (Retried)',
-              }
-            : r
-        )
-      )
-      setRetryingId(null)
-      if (selectedRun?.id === id) {
-        setSelectedRun(prev => (prev ? { ...prev, status: 'succeeded', errorSummary: undefined } : null))
+  async function loadRuns() {
+    try {
+      const res = await fetch('/api/runs')
+      if (res.ok) {
+        const data = await res.json()
+        setRuns(data.runs || [])
       }
-    }, 800)
+    } catch (err) {
+      console.error('Failed to load runs:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadRuns()
+  }, [])
+
+  async function handleRetry(id: string) {
+    setRetryingId(id)
+    try {
+      const res = await fetch(`/api/runs/${id}/retry`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setRuns(prev => prev.map(r => (r.id === id ? data.run : r)))
+        if (selectedRun?.id === id) setSelectedRun(data.run)
+      }
+    } catch (err) {
+      console.error('Failed to retry run:', err)
+    } finally {
+      setRetryingId(null)
+    }
   }
 
   const filteredRuns = runs.filter(r => {
@@ -139,12 +82,20 @@ export default function RunsPage() {
             Workflow Runs & Logs
           </h1>
           <p className="text-sm sm:text-base max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
-            Execution logs, failure diagnostics, and safe idempotency retries. All payloads are redacted for privacy.
+            Execution logs, failure diagnostics, and safe idempotency retries. Backed by persistent run store.
           </p>
         </div>
 
         {/* Filter buttons */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={loadRuns}
+            className="p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+            style={{ border: '1px solid var(--border-soft)', color: 'var(--text-secondary)' }}
+            title="Refresh run history"
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+          </button>
           {(['all', 'failed', 'succeeded'] as const).map(tab => (
             <button
               key={tab}
@@ -183,75 +134,92 @@ export default function RunsPage() {
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: 'var(--border-soft)' }}>
-              {filteredRuns.map(run => (
-                <tr
-                  key={run.id}
-                  className="hover:bg-white/[0.02] transition-colors cursor-pointer"
-                  onClick={() => setSelectedRun(run)}
-                >
-                  <td className="p-3.5 sm:p-4">
-                    {run.status === 'succeeded' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400">
-                        <CheckCircle2 size={12} /> Success
-                      </span>
-                    ) : run.status === 'failed' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400">
-                        <XCircle size={12} /> Failed
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-400">
-                        <AlertTriangle size={12} /> Unknown
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3.5 sm:p-4 font-medium" style={{ color: 'var(--text-primary)' }}>
-                    <div>
-                      <span className="font-semibold">{run.workflowName}</span>
-                      <span className="text-[11px] font-mono ml-2" style={{ color: 'var(--brand-orange)' }}>
-                        {run.agentCode}
-                      </span>
-                    </div>
-                    {run.errorSummary && (
-                      <p className="text-[11px] mt-0.5 text-red-400 truncate max-w-sm">
-                        {run.errorSummary}
-                      </p>
-                    )}
-                  </td>
-                  <td className="p-3.5 sm:p-4 font-mono text-[11px] hidden md:table-cell" style={{ color: 'var(--text-muted)' }}>
-                    {run.executionId}
-                  </td>
-                  <td className="p-3.5 sm:p-4 text-[11px] hidden sm:table-cell" style={{ color: 'var(--text-secondary)' }}>
-                    {run.startedAt}
-                  </td>
-                  <td className="p-3.5 sm:p-4 font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                    {run.duration}
-                  </td>
-                  <td className="p-3.5 sm:p-4 text-right" onClick={e => e.stopPropagation()}>
-                    <div className="inline-flex items-center gap-2">
-                      {run.status === 'failed' && (
-                        <button
-                          onClick={() => handleRetry(run.id)}
-                          disabled={retryingId === run.id}
-                          className="px-2.5 py-1 rounded text-[11px] font-semibold transition-all hover:opacity-90 active:scale-95 cursor-pointer inline-flex items-center gap-1"
-                          style={{ background: 'var(--brand-orange)', color: '#101110' }}
-                        >
-                          <RotateCw size={11} className={retryingId === run.id ? 'animate-spin' : ''} />
-                          <span>Retry</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setSelectedRun(run)}
-                        className="p-1 rounded hover:bg-white/5 transition-colors"
-                        style={{ color: 'var(--text-muted)' }}
-                        title="Inspect payload"
-                        aria-label="Inspect payload"
-                      >
-                        <Eye size={14} />
-                      </button>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center" style={{ color: 'var(--text-muted)' }}>
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 size={16} className="animate-spin text-[var(--brand-orange)]" />
+                      <span>Loading runs...</span>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : filteredRuns.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center" style={{ color: 'var(--text-muted)' }}>
+                    No workflow runs found.
+                  </td>
+                </tr>
+              ) : (
+                filteredRuns.map(run => (
+                  <tr
+                    key={run.id}
+                    className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                    onClick={() => setSelectedRun(run)}
+                  >
+                    <td className="p-3.5 sm:p-4">
+                      {run.status === 'succeeded' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400">
+                          <CheckCircle2 size={12} /> Success
+                        </span>
+                      ) : run.status === 'failed' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400">
+                          <XCircle size={12} /> Failed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-400">
+                          <AlertTriangle size={12} /> Unknown
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3.5 sm:p-4 font-medium" style={{ color: 'var(--text-primary)' }}>
+                      <div>
+                        <span className="font-semibold">{run.workflowName}</span>
+                        <span className="text-[11px] font-mono ml-2" style={{ color: 'var(--brand-orange)' }}>
+                          {run.agentCode}
+                        </span>
+                      </div>
+                      {run.errorSummary && (
+                        <p className="text-[11px] mt-0.5 text-red-400 truncate max-w-sm">
+                          {run.errorSummary}
+                        </p>
+                      )}
+                    </td>
+                    <td className="p-3.5 sm:p-4 font-mono text-[11px] hidden md:table-cell" style={{ color: 'var(--text-muted)' }}>
+                      {run.executionId}
+                    </td>
+                    <td className="p-3.5 sm:p-4 text-[11px] hidden sm:table-cell" style={{ color: 'var(--text-secondary)' }}>
+                      {run.startedAt}
+                    </td>
+                    <td className="p-3.5 sm:p-4 font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      {run.duration}
+                    </td>
+                    <td className="p-3.5 sm:p-4 text-right" onClick={e => e.stopPropagation()}>
+                      <div className="inline-flex items-center gap-2">
+                        {run.status === 'failed' && (
+                          <button
+                            onClick={() => handleRetry(run.id)}
+                            disabled={retryingId === run.id}
+                            className="px-2.5 py-1 rounded text-[11px] font-semibold transition-all hover:opacity-90 active:scale-95 cursor-pointer inline-flex items-center gap-1"
+                            style={{ background: 'var(--brand-orange)', color: '#101110' }}
+                          >
+                            <RotateCw size={11} className={retryingId === run.id ? 'animate-spin' : ''} />
+                            <span>Retry</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setSelectedRun(run)}
+                          className="p-1 rounded hover:bg-white/5 transition-colors cursor-pointer"
+                          style={{ color: 'var(--text-muted)' }}
+                          title="Inspect payload"
+                          aria-label="Inspect payload"
+                        >
+                          <Eye size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -286,7 +254,7 @@ export default function RunsPage() {
               </div>
               <button
                 onClick={() => setSelectedRun(null)}
-                className="text-xs px-2 py-1 rounded hover:bg-white/5"
+                className="text-xs px-2 py-1 rounded hover:bg-white/5 cursor-pointer"
                 style={{ color: 'var(--text-muted)' }}
               >
                 Close
@@ -323,7 +291,7 @@ export default function RunsPage() {
                 <button
                   onClick={() => handleRetry(selectedRun.id)}
                   disabled={retryingId === selectedRun.id}
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold"
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
                   style={{ background: 'var(--brand-orange)', color: '#101110' }}
                 >
                   {retryingId === selectedRun.id ? 'Retrying...' : 'Safe Idempotent Retry'}
