@@ -70,8 +70,32 @@ export default function DashboardCopilot() {
     let actionExecuted: Message['actionExecuted'] = undefined
 
     try {
+      // 0. Ingest Gemini Daily Content Report command
+      if (
+        lower.includes('daily content report') ||
+        lower.includes('#### idea') ||
+        (lower.includes('gemini') && (lower.includes('report') || lower.includes('content') || lower.includes('ideas')))
+      ) {
+        const webhookRes = await fetch('/api/webhooks/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: prompt,
+        })
+        const webhookData = await webhookRes.json()
+        if (webhookRes.ok && webhookData.success) {
+          replyContent = `Report ingested successfully! I parsed and stored ${webhookData.topicsCount} content topics into your database (2 carousels, 1 video script, 2 static posts), created pending approvals, and scheduled Google Sheets synchronization.`
+          actionExecuted = {
+            type: 'CONTENT_BATCH_INGESTED',
+            details: `${webhookData.topicsCount} topics loaded into Content Studio`,
+            link: '/content',
+            linkLabel: 'Open Content Studio',
+          }
+        } else {
+          replyContent = `I attempted to parse the Gemini report, but encountered an issue: ${webhookData.error || 'Please provide the report text with the 5 idea blocks.'}`
+        }
+      }
       // 1. Approve content command
-      if (lower.includes('approve') || lower.includes('approval')) {
+      else if (lower.includes('approve') || lower.includes('approval')) {
         // Fetch pending approvals
         const apprRes = await fetch('/api/approvals')
         if (apprRes.ok) {

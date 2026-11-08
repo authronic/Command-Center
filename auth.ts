@@ -76,7 +76,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user
-      const isPublicPath = nextUrl.pathname.startsWith('/login')
+      const isPublicPath =
+        nextUrl.pathname.startsWith('/login') ||
+        nextUrl.pathname.startsWith('/api/webhooks')
       if (isPublicPath) return true
       if (isLoggedIn) return true
       return false

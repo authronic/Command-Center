@@ -25,6 +25,63 @@ import {
 } from 'lucide-react'
 import { ResearchTopicRecord, ContentBatchRecord, CarouselSlide, VideoScene } from '@/lib/db/types'
 
+const SAMPLE_GEMINI_REPORT = `### Daily Content Report: GCC Real Estate Automation
+
+---
+
+#### Idea 1: Carousel (7-Slide Off-Plan / WhatsApp Lead Automation)
+* **Title / Finding:** The 45-Second WhatsApp Qualification Engine for Off-Plan Launches
+* **Target Market:** UAE (Dubai) & Saudi Arabia (Riyadh)
+* **Target Angle / Hypothesis:** Off-plan launch campaigns waste up to 40% of ad spend on unqualified leads because human agents cannot triage incoming WhatsApp inquiries within the critical 3-minute response window.
+* **Source Reference / Topic Link:** Meta Business Messaging API + Webhook-driven CRM ingestion (Property Finder / Bayut lead forms).
+* **Slide Headlines:**
+* **Slide 1:** 45 Seconds: The Exact Window That Makes or Breaks a Dubai Off-Plan Campaign
+* **Slide 2:** The WhatsApp Bottleneck: Why Manual Chat Handlers Drop High-Net-Worth Buyers
+* **Slide 3:** The Architecture: Ad Click -> WhatsApp Webhook -> Deterministic Triage
+* **Slide 4:** Qualification Without Friction: Budget, Payment Plan, & Residency Status in 3 Prompts
+* **Slide 5:** Routing Logic: Flagging Secondary Market Inquiries vs. Ready-to-Commit Off-Plan Buyers
+* **Slide 6:** Live CRM Sync: Writing Full Buyer Profiles into Salesforce / HubSpot in Under a Minute
+* **Slide 7 (CTA):** Comment "OFFPLAN" to receive our production WhatsApp-to-CRM automation blueprint.
+
+---
+
+#### Idea 2: Carousel (Case Study / Framework)
+* **Title / Framework:** The Multi-Portal Inquiry Normalizer: Eliminating Duplicate Data Entry Across Property Finder, Bayut, and Wasalt
+* **Target Market:** Saudi Arabia (KSA) & Qatar (Doha)
+* **Target Angle / Hypothesis:** GCC brokerages listing across multiple portals suffer from fragmented lead attribution and delayed follow-ups.
+* **Source Reference / Topic Link:** Event-driven architecture, webhook normalization, and schema validation for GCC property portals.
+* **Slide Headlines:**
+* **Slide 1:** The Portal Fragment: Why Your Top Agents Spend 2 Hours a Day Copying Lead Data
+* **Slide 7 (CTA):** Comment "PORTAL" to download the GCC Multi-Portal Ingestion Schema.
+
+---
+
+#### Idea 3: Video Script (60-Second Avatar Script for Luxury Property Triage)
+* **Title / Finding:** Triage or Lose: How to Filter $5M+ Inquiries from Tire-Kickers Without Damaging Brand Prestige
+* **Target Market:** UAE (Dubai Marina / Palm Jumeirah) & Qatar (The Pearl / Lusail)
+* **Target Angle / Hypothesis:** High-end brokerages cannot afford to expose ultra-HNW clients to rigid, robotic qualification forms.
+* **Source Reference / Topic Link:** Conversational AI triage with natural language entity extraction for prime real estate.
+* **Scene Timestamps & Script:**
+* **0:00–0:15s (Hook):** *(Avatar center frame)* "If your agents treat a 20-million-dirham villa inquiry the same way they treat a rental lead, you're actively handing deals to rival brokerages."
+* **0:15–0:45s (Core Insight):** *(Split screen)* "Elite brokerages in Dubai and Doha use conversational concierge triage."
+* **0:45–1:00s (CTA):** *(Avatar returns to center)* "Drop the word 'LUXURY' below to get our private VIP triage workflow."
+
+---
+
+#### Idea 4: Static Post (Speed-to-Lead SLA Breakdown)
+* **Title / Finding:** The Speed-to-Lead SLA Gap in GCC Real Estate
+* **Target Market:** UAE, Qatar, and Saudi Arabia
+* **Hook Headline:** **Your Inbound Leads Have a 5-Minute Half-Life. Your Average Response Time is 48 Minutes.**
+* **Body Copy:** In the GCC property market, international investors submit inquiries across 3 to 5 competitor listings simultaneously. The brokerage that initiates a personalized, context-aware touchpoint within the first 300 seconds wins the dialogue 78% of the time.
+
+---
+
+#### Idea 5: Static Post (CRM Sync & Portal Inquiry Checklist)
+* **Title / Finding:** The 5-Point GCC Brokerage Data Hygiene & Sync Audit
+* **Target Market:** Saudi Arabia (Riyadh & Jeddah) & UAE
+* **Hook Headline:** **The 5-Point Integration Audit Every GCC Brokerage Needs Before Their Next Launch.**
+* **Body Copy:** Before scaling paid ad budgets or portal listing tiers, audit your backend integration for these 5 critical failure points: 1. E.164 Phone Formatting 2. UTM Attribution 3. Idempotent Webhook Handling 4. Dynamic Agent Capacity Routing 5. Auto-Disqualification Archival.`
+
 export default function ContentPage() {
   const [batch, setBatch] = useState<ContentBatchRecord | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,6 +109,8 @@ export default function ContentPage() {
   ])
   const [intakeError, setIntakeError] = useState<string | null>(null)
   const [submittingIntake, setSubmittingIntake] = useState(false)
+  const [intakeTab, setIntakeTab] = useState<'paste' | 'manual'>('paste')
+  const [rawReportText, setRawReportText] = useState('')
 
   async function loadTopics() {
     setLoading(true)
@@ -139,6 +198,35 @@ export default function ContentPage() {
       console.error('Failed to generate drafts:', err)
     } finally {
       setGeneratingDrafts(false)
+    }
+  }
+
+  async function handlePasteReportSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!rawReportText.trim()) {
+      setIntakeError('Please paste your Gemini report markdown.')
+      return
+    }
+    setSubmittingIntake(true)
+    setIntakeError(null)
+    try {
+      const res = await fetch('/api/webhooks/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: rawReportText,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to ingest report')
+      }
+      setShowIntakeModal(false)
+      setRawReportText('')
+      setDraftsSuccess(`Report parsed successfully! Ingested 5 topics and updated the database.`)
+      loadTopics()
+    } catch (err: any) {
+      setIntakeError(err.message)
+    } finally {
+      setSubmittingIntake(false)
     }
   }
 
@@ -682,13 +770,85 @@ export default function ContentPage() {
               </button>
             </div>
 
-            <form onSubmit={handleIntakeSubmit} className="p-6 overflow-y-auto space-y-4">
-              {intakeError && (
-                <div className="p-3 rounded-lg text-xs flex items-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20">
-                  <AlertCircle size={14} />
-                  <span>{intakeError}</span>
+            {/* Tabs */}
+            <div className="flex border-b text-xs font-semibold px-6 pt-3 gap-6" style={{ borderColor: 'var(--border-soft)', background: 'var(--surface-2)' }}>
+              <button
+                type="button"
+                onClick={() => setIntakeTab('paste')}
+                className={`pb-2.5 transition-all cursor-pointer ${intakeTab === 'paste' ? 'border-b-2 text-[var(--brand-orange)] border-[var(--brand-orange)] font-bold' : 'text-zinc-400 hover:text-white'}`}
+              >
+                ⚡ Paste Gemini Report (Instant)
+              </button>
+              <button
+                type="button"
+                onClick={() => setIntakeTab('manual')}
+                className={`pb-2.5 transition-all cursor-pointer ${intakeTab === 'manual' ? 'border-b-2 text-[var(--brand-orange)] border-[var(--brand-orange)] font-bold' : 'text-zinc-400 hover:text-white'}`}
+              >
+                📝 Manual 5-Topic Form
+              </button>
+            </div>
+
+            {intakeTab === 'paste' ? (
+              <form onSubmit={handlePasteReportSubmit} className="p-6 overflow-y-auto space-y-4">
+                {intakeError && (
+                  <div className="p-3 rounded-lg text-xs flex items-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20">
+                    <AlertCircle size={14} />
+                    <span>{intakeError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                      Paste Raw Gemini Daily Content Report:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setRawReportText(SAMPLE_GEMINI_REPORT)}
+                      className="text-[11px] font-mono text-[var(--brand-orange)] hover:underline cursor-pointer"
+                    >
+                      Fill Sample Report
+                    </button>
+                  </div>
+                  <textarea
+                    rows={12}
+                    placeholder="Paste the daily report from Google Gemini here (Markdown, carousels, video scripts, static posts)..."
+                    value={rawReportText}
+                    onChange={e => setRawReportText(e.target.value)}
+                    className="w-full p-3 rounded-lg text-xs font-mono border focus:outline-none bg-[var(--surface-2)] border-[var(--border-soft)] text-zinc-200"
+                    required
+                  />
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    The autonomous intake parser extracts all 5 ideas, slides, video timestamps, and copy automatically into the database.
+                  </p>
                 </div>
-              )}
+
+                <div className="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border-soft)]">
+                  <button
+                    type="button"
+                    onClick={() => setShowIntakeModal(false)}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold hover:bg-white/5 cursor-pointer text-zinc-400"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingIntake}
+                    className="px-5 py-2 rounded-lg text-xs font-semibold bg-[var(--brand-orange)] text-[#101110] hover:opacity-90 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {submittingIntake && <Loader2 size={13} className="animate-spin" />}
+                    <span>⚡ Parse & Ingest Into Database</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleIntakeSubmit} className="p-6 overflow-y-auto space-y-4">
+                {intakeError && (
+                  <div className="p-3 rounded-lg text-xs flex items-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20">
+                    <AlertCircle size={14} />
+                    <span>{intakeError}</span>
+                  </div>
+                )}
 
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
@@ -784,7 +944,8 @@ export default function ContentPage() {
                 </button>
               </div>
             </form>
-          </div>
+          )}
+        </div>
         </div>
       )}
     </div>
