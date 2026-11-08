@@ -100,3 +100,44 @@ export async function syncToGoogleSheet(
     }
   }
 }
+
+/**
+ * Reads tasks and approvals from Google Sheet
+ */
+export async function readFromGoogleSheet(
+  accessToken?: string,
+  sheetId: string = process.env.GOOGLE_SHEET_ID || '146tzKMldWAayotPPACLJFXM4LDJhVsrF2ccmdMbDwv4'
+): Promise<{ success: boolean; rows: any[]; message: string }> {
+  if (!accessToken) {
+    return {
+      success: false,
+      rows: [],
+      message: 'Sign in with Google to read live rows directly from Google Sheets.',
+    }
+  }
+
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Tasks!A1:Z100`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+
+    if (!res.ok) {
+      throw new Error(`Sheets API error (${res.status}): ${await res.text()}`)
+    }
+
+    const data = await res.json()
+    return {
+      success: true,
+      rows: data.values || [],
+      message: `Successfully read ${(data.values || []).length} rows from Google Sheets.`,
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      rows: [],
+      message: err.message,
+    }
+  }
+}
+

@@ -56,3 +56,29 @@ export interface AuditEventRecord {
   details?: string
   timestamp: string
 }
+
+export interface AssetRecord {
+  id: string
+  name: string
+  type: 'image' | 'video' | 'pdf' | 'json' | 'doc'
+  size: string
+  driveFileId?: string
+  driveFolderId?: string
+  webViewLink?: string
+  thumbnailLink?: string
+  relatedBatch?: string
+  uploadedAt: string
+}
+
+export interface SalesLeadRecord {
+  id: string
+  company: string
+  contactName: string
+  market: 'Qatar' | 'Dubai' | 'KSA' | 'Global'
+  dealSize: string
+  stage: 'Lead Inbound' | 'Discovery' | 'Proposal Sent' | 'Negotiation' | 'Won' | 'Lost'
+  source: string
+  lastContact: string
+  nextAction: string
+}
+
