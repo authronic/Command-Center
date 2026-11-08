@@ -5,6 +5,9 @@ import {
   ApprovalRecord,
   WorkflowRunRecord,
   AuditEventRecord,
+  ContentBatchRecord,
+  ResearchTopicRecord,
+  ScheduledPostRecord,
 } from './types'
 
 // Data file path (persisted in project data directory or /tmp in serverless)
@@ -20,8 +23,11 @@ interface DatabaseSchema {
   approvals: ApprovalRecord[]
   runs: WorkflowRunRecord[]
   auditEvents: AuditEventRecord[]
+  batches: ContentBatchRecord[]
+  scheduledPosts: ScheduledPostRecord[]
   lastSyncedAt?: string
 }
+
 
 const initialSeed: DatabaseSchema = {
   tasks: [
@@ -167,11 +173,182 @@ const initialSeed: DatabaseSchema = {
       action: 'INITIALIZE_SYSTEM',
       targetType: 'SYSTEM',
       targetId: 'sys-0',
-      details: 'Command Center Phase 2 operational storage initialized.',
+      details: 'Command Center Phase 2 & 3 operational storage initialized.',
       timestamp: new Date().toISOString(),
     },
   ],
+  batches: [
+    {
+      id: 'batch-20261108-01',
+      name: 'GCC Real Estate AI Intake · Nov 8',
+      createdAt: '2026-11-08T10:00:00.000Z',
+      status: 'active',
+      topics: [
+        {
+          id: 'top-1',
+          batchId: 'batch-20261108-01',
+          title: 'Qatar Real Estate Portals Lead Leakage: Why 40% of Inbound Buyers Receive No Callback within 2 Hours',
+          sourceUrl: 'https://example.com/qatar-property-trends-2026',
+          relevanceScore: 4.8,
+          assignedFormat: 'static',
+          targetAngle: 'Speed-to-lead SLA breakdown for Doha independent agencies',
+          market: 'Qatar',
+          status: 'allocated',
+          staticCopy: {
+            hook: '40% of inbound luxury property leads in Doha go completely cold before a human broker replies.',
+            body: 'High-net-worth buyers in West Bay & The Pearl expect response times under 5 minutes. When brokerages take 3+ hours, 82% of prospects submit inquiries on competitor listings. An automated AI triage layer guarantees instant WhatsApp replies and pre-qualifies budgets before passing to senior agents.',
+            cta: 'Read the full Doha speed-to-lead benchmark on our website: authronic.com',
+            hashtags: ['#QatarRealEstate', '#DohaProperty', '#PropTech', '#AuthronicAI'],
+          },
+        },
+        {
+          id: 'top-2',
+          batchId: 'batch-20261108-01',
+          title: 'Off-Plan WhatsApp Automation: How Top Dubai Agencies Handle 200+ Daily Portal Leads',
+          sourceUrl: 'https://example.com/dubai-offplan-inquiries',
+          relevanceScore: 4.6,
+          assignedFormat: 'carousel',
+          targetAngle: '7-slide workflow comparison: manual vs automated qualification',
+          market: 'UAE',
+          status: 'allocated',
+          slides: [
+            {
+              slideNumber: 1,
+              headline: 'How Top Dubai Brokerages Triage 200+ Off-Plan Leads Daily',
+              bodyText: 'Without hiring 10 extra junior admins.',
+              visualNote: 'Cover Slide · High contrast orange gradient background',
+            },
+            {
+              slideNumber: 2,
+              headline: 'The Problem: Portal Notification Overload',
+              bodyText: 'Inquiries arrive simultaneously from Property Finder, Bayut, and Instagram Ads. Manual WhatsApp replies take an average of 42 minutes.',
+              visualNote: 'Split graphic showing notifications stacking up',
+            },
+            {
+              slideNumber: 3,
+              headline: 'Step 1: 30-Second Webhook Handshake',
+              bodyText: 'The lead hits the portal → Instant n8n trigger captures name, phone number, and listing unit ID within 300ms.',
+              visualNote: 'Technical architecture diagram icon',
+            },
+            {
+              slideNumber: 4,
+              headline: 'Step 2: Bilingual Qualification Agent',
+              bodyText: 'An AI conversational agent reaches out via WhatsApp in English or Arabic, confirming investment budget, residency status, and financing.',
+              visualNote: 'Bilingual chat mock-up window',
+            },
+            {
+              slideNumber: 5,
+              headline: 'Step 3: Instant CRM Sync & Calendar Invite',
+              bodyText: 'High-intent leads are routed straight to the designated luxury agent’s Google Calendar with a briefing card.',
+              visualNote: 'Calendar booking confirmation screen',
+            },
+            {
+              slideNumber: 6,
+              headline: 'The Result: 4.8x Higher Meeting Book Rate',
+              bodyText: 'Agencies using instant conversational triage see 89% response rates compared to 31% on manual follow-ups.',
+              visualNote: 'Metric comparison bar chart',
+            },
+            {
+              slideNumber: 7,
+              headline: 'Automate Your Inbound Flow with Authronic',
+              bodyText: 'We build enterprise agentic pipelines for ambitious GCC real estate brokerages. Visit authronic.com to see live demos.',
+              visualNote: 'Call-to-Action slide with official wordmark',
+            },
+          ],
+        },
+        {
+          id: 'top-3',
+          batchId: 'batch-20261108-01',
+          title: 'AI Video Triage for Luxury GCC Listings: Enhancing High-Net-Worth Buyer Engagement',
+          sourceUrl: 'https://example.com/gcc-luxury-tech',
+          relevanceScore: 4.2,
+          assignedFormat: 'video',
+          targetAngle: 'Avatar video demonstration explaining 24/7 VIP buyer intake',
+          market: 'GCC-General',
+          status: 'allocated',
+          scenes: [
+            {
+              sceneNumber: 1,
+              timestampRange: '0:00 - 0:12',
+              speakerText: 'If you sell 10-million-dollar penthouses in Dubai or villas in Doha, your biggest enemy isn’t the market. It’s the 4-hour delay before your first callback.',
+              visualAction: 'Hook · Close-up avatar facing camera with luxury penthouse backdrop',
+            },
+            {
+              sceneNumber: 2,
+              timestampRange: '0:12 - 0:38',
+              speakerText: 'High-net-worth international investors inquiry at 2 AM their local time. While your team is asleep, an AI VIP Concierge responds instantly in French, Arabic, or English, presenting unit floorplans and booking a private walkthrough.',
+              visualAction: 'Core Insight · Animated smartphone UI showing instant VIP concierge response',
+            },
+            {
+              sceneNumber: 3,
+              timestampRange: '0:38 - 0:58',
+              speakerText: 'Authronic builds bespoke AI concierge pipelines for GCC luxury developments. Click the link below to watch a live interactive walkthrough.',
+              visualAction: 'Call to Action · Branded Authronic end card with QR code',
+            },
+          ],
+        },
+        {
+          id: 'top-4',
+          batchId: 'batch-20261108-01',
+          title: 'Automated CRM Sync: Preventing Portal Inquiry Drops Between PropertyFinder & Local CRM',
+          sourceUrl: 'https://example.com/crm-sync-realestate',
+          relevanceScore: 4.5,
+          assignedFormat: 'static',
+          targetAngle: 'Practical technical checklist for agency operations leads',
+          market: 'UAE',
+          status: 'allocated',
+          staticCopy: {
+            hook: 'Why 1 out of 5 portal inquiries never make it into your agency’s CRM system.',
+            body: 'Manual CSV exports and broken Zapier connections are leaking high-value leads every single weekend. Here is the 4-point architecture audit we use to ensure zero dropped leads across GCC property portals.',
+            cta: 'Save this post for your operations meeting on Monday.',
+            hashtags: ['#PropTechGCC', '#RealEstateTech', '#DubaiBrokers'],
+          },
+        },
+        {
+          id: 'top-5',
+          batchId: 'batch-20261108-01',
+          title: 'Generic US Real Estate Agent Marketing Strategies (Not Localized to GCC)',
+          sourceUrl: 'https://example.com/us-generic-marketing',
+          relevanceScore: 1.8,
+          assignedFormat: 'skip',
+          targetAngle: 'Out of regional scope; archived from batch',
+          market: 'GCC-General',
+          status: 'skipped',
+        },
+      ],
+    },
+  ],
+  scheduledPosts: [
+    {
+      id: 'sch-1',
+      title: 'Qatar Real Estate Portal SLA Breakdown',
+      format: 'Static Post',
+      channel: 'LinkedIn',
+      scheduledTime: 'Mon Nov 10 · 11:00 AM PKT (10:00 AM AST)',
+      dayOfWeek: 'Monday',
+      status: 'scheduled_internal',
+    },
+    {
+      id: 'sch-2',
+      title: 'Dubai Off-Plan WhatsApp Lead Triage Flow (7-Slide Carousel)',
+      format: 'Carousel',
+      channel: 'LinkedIn',
+      scheduledTime: 'Wed Nov 12 · 3:00 PM PKT (2:00 PM GST)',
+      dayOfWeek: 'Wednesday',
+      status: 'scheduled_internal',
+    },
+    {
+      id: 'sch-3',
+      title: 'VIP Buyer AI Video Concierge: 24/7 GCC Triage',
+      format: 'Video',
+      channel: 'LinkedIn',
+      scheduledTime: 'Fri Nov 14 · 12:00 PM PKT (11:00 AM AST)',
+      dayOfWeek: 'Friday',
+      status: 'draft',
+    },
+  ],
 }
+
 
 function ensureDb(): DatabaseSchema {
   try {
@@ -343,3 +520,171 @@ export function getAuditEvents(): AuditEventRecord[] {
   const db = ensureDb()
   return db.auditEvents
 }
+
+// ========================
+// Content Studio Operations (Phase 3)
+// ========================
+export function getContentBatches(): ContentBatchRecord[] {
+  const db = ensureDb()
+  return db.batches || []
+}
+
+export function getActiveBatch(): ContentBatchRecord | null {
+  const db = ensureDb()
+  if (!db.batches || db.batches.length === 0) return null
+  return db.batches.find(b => b.status === 'active') || db.batches[0]
+}
+
+export function updateTopicFormat(
+  batchId: string,
+  topicId: string,
+  format: 'static' | 'carousel' | 'video' | 'skip'
+): boolean {
+  const db = ensureDb()
+  const batch = (db.batches || []).find(b => b.id === batchId)
+  if (!batch) return false
+
+  const topic = batch.topics.find(t => t.id === topicId)
+  if (!topic) return false
+
+  topic.assignedFormat = format
+  topic.status = format === 'skip' ? 'skipped' : 'allocated'
+
+  writeDb(db)
+  return true
+}
+
+export function createContentBatch(
+  name: string,
+  topics: Omit<ResearchTopicRecord, 'id' | 'batchId' | 'status'>[]
+): ContentBatchRecord {
+  const db = ensureDb()
+  const batchId = `batch-${Date.now()}`
+
+  const newBatch: ContentBatchRecord = {
+    id: batchId,
+    name,
+    createdAt: new Date().toISOString(),
+    status: 'active',
+    topics: topics.map((t, i) => ({
+      ...t,
+      id: `top-${batchId}-${i + 1}`,
+      batchId,
+      status: t.assignedFormat === 'skip' ? 'skipped' : 'allocated',
+    })),
+  }
+
+  // Mark other batches inactive
+  db.batches = (db.batches || []).map(b => ({ ...b, status: 'archived' as const }))
+  db.batches.unshift(newBatch)
+
+  db.auditEvents.unshift({
+    id: `aud-${Date.now()}`,
+    actor: 'AUTH-C01 Research Engine',
+    action: 'INGEST_CONTENT_BATCH',
+    targetType: 'CONTENT_BATCH',
+    targetId: batchId,
+    details: `Ingested 5 research topics for ${name}`,
+    timestamp: new Date().toISOString(),
+  })
+
+  writeDb(db)
+  return newBatch
+}
+
+export function convertBatchToApprovals(batchId: string): ApprovalRecord[] {
+  const db = ensureDb()
+  const batch = (db.batches || []).find(b => b.id === batchId)
+  if (!batch) return []
+
+  const createdApprovals: ApprovalRecord[] = []
+
+  batch.topics.forEach(topic => {
+    if (topic.assignedFormat === 'skip') return
+
+    const formatMap = {
+      static: 'Static Post',
+      carousel: 'Carousel',
+      video: 'Video',
+    } as const
+
+    const approval: ApprovalRecord = {
+      id: `appr-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      title: topic.title,
+      format: formatMap[topic.assignedFormat],
+      market: topic.market,
+      author: topic.assignedFormat === 'carousel' ? 'AUTH-C03 Content Draft' : 'AUTH-C02 Research Engine',
+      version: 'v1.0',
+      summary: topic.targetAngle,
+      claims: [
+        `Source verified: ${topic.sourceUrl}`,
+        `Relevance score: ${topic.relevanceScore}/5.0`,
+      ],
+      status: 'pending',
+      submittedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }
+
+    db.approvals.unshift(approval)
+    createdApprovals.push(approval)
+    topic.status = 'drafted'
+  })
+
+  db.auditEvents.unshift({
+    id: `aud-${Date.now()}`,
+    actor: 'Authronic Admin',
+    action: 'GENERATE_DRAFTS',
+    targetType: 'APPROVAL_BATCH',
+    targetId: batchId,
+    details: `Created ${createdApprovals.length} approval queue items from batch ${batchId}`,
+    timestamp: new Date().toISOString(),
+  })
+
+  writeDb(db)
+  return createdApprovals
+}
+
+// ========================
+// Calendar Operations (Phase 3)
+// ========================
+export function getScheduledPosts(): ScheduledPostRecord[] {
+  const db = ensureDb()
+  return db.scheduledPosts || []
+}
+
+export function createScheduledPost(post: Omit<ScheduledPostRecord, 'id'>): ScheduledPostRecord {
+  const db = ensureDb()
+  const record: ScheduledPostRecord = {
+    ...post,
+    id: `sch-${Date.now()}`,
+  }
+
+  db.scheduledPosts = db.scheduledPosts || []
+  db.scheduledPosts.push(record)
+
+  db.auditEvents.unshift({
+    id: `aud-${Date.now()}`,
+    actor: 'Authronic Admin',
+    action: 'SCHEDULE_POST',
+    targetType: 'CALENDAR_POST',
+    targetId: record.id,
+    details: `Scheduled ${record.format} on ${record.channel} for ${record.scheduledTime}`,
+    timestamp: new Date().toISOString(),
+  })
+
+  writeDb(db)
+  return record
+}
+
+export function updateScheduledPostStatus(
+  id: string,
+  status: 'draft' | 'scheduled_internal' | 'published_verified' | 'failed'
+): ScheduledPostRecord | null {
+  const db = ensureDb()
+  const post = (db.scheduledPosts || []).find(p => p.id === id)
+  if (!post) return null
+
+  post.status = status
+  writeDb(db)
+  return post
+}
+

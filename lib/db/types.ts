@@ -82,3 +82,59 @@ export interface SalesLeadRecord {
   nextAction: string
 }
 
+export type TopicFormat = 'static' | 'carousel' | 'video' | 'skip'
+
+export interface CarouselSlide {
+  slideNumber: number
+  headline: string
+  bodyText: string
+  visualNote: string
+}
+
+export interface VideoScene {
+  sceneNumber: number
+  timestampRange: string
+  speakerText: string
+  visualAction: string
+}
+
+export interface ResearchTopicRecord {
+  id: string
+  batchId: string
+  title: string
+  sourceUrl: string
+  relevanceScore: number
+  assignedFormat: TopicFormat
+  targetAngle: string
+  market: 'Qatar' | 'UAE' | 'KSA' | 'GCC-General'
+  status: 'researched' | 'allocated' | 'drafted' | 'skipped'
+  slides?: CarouselSlide[]
+  scenes?: VideoScene[]
+  staticCopy?: {
+    hook: string
+    body: string
+    cta: string
+    hashtags: string[]
+  }
+}
+
+export interface ContentBatchRecord {
+  id: string
+  name: string
+  createdAt: string
+  status: 'active' | 'archived'
+  topics: ResearchTopicRecord[]
+}
+
+export interface ScheduledPostRecord {
+  id: string
+  topicId?: string
+  title: string
+  format: 'Static Post' | 'Carousel' | 'Video'
+  channel: 'LinkedIn' | 'Instagram' | 'Twitter/X'
+  scheduledTime: string
+  dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'
+  status: 'draft' | 'scheduled_internal' | 'published_verified' | 'failed'
+}
+
+

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   FileText,
@@ -13,72 +13,181 @@ import {
   ExternalLink,
   CheckCircle2,
   Calendar,
+  Eye,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  RefreshCw,
+  Sliders,
+  Send,
+  AlertCircle,
 } from 'lucide-react'
-
-interface ResearchTopic {
-  id: string
-  title: string
-  sourceUrl: string
-  relevanceScore: number
-  assignedFormat: 'static' | 'carousel' | 'video' | 'skip'
-  targetAngle: string
-}
-
-const initialTopics: ResearchTopic[] = [
-  {
-    id: 'top-1',
-    title: 'Qatar Real Estate Portals Lead Leakage: Why 40% of Inbound Buyers Receive No Callback within 2 Hours',
-    sourceUrl: 'https://example.com/qatar-property-trends-2026',
-    relevanceScore: 4.8,
-    assignedFormat: 'static',
-    targetAngle: 'Speed-to-lead SLA breakdown for Doha independent agencies',
-  },
-  {
-    id: 'top-2',
-    title: 'Off-Plan WhatsApp Automation: How Top Dubai Agencies Handle 200+ Daily Portal Leads',
-    sourceUrl: 'https://example.com/dubai-offplan-inquiries',
-    relevanceScore: 4.6,
-    assignedFormat: 'carousel',
-    targetAngle: '7-slide workflow comparison: manual vs automated qualification',
-  },
-  {
-    id: 'top-3',
-    title: 'AI Video Triage for Luxury GCC Listings: Enhancing High-Net-Worth Buyer Engagement',
-    sourceUrl: 'https://example.com/gcc-luxury-tech',
-    relevanceScore: 4.2,
-    assignedFormat: 'video',
-    targetAngle: 'Avatar video demonstration explaining 24/7 VIP buyer intake',
-  },
-  {
-    id: 'top-4',
-    title: 'Automated CRM Sync: Preventing Portal Inquiry Drops Between PropertyFinder & Local CRM',
-    sourceUrl: 'https://example.com/crm-sync-realestate',
-    relevanceScore: 4.5,
-    assignedFormat: 'static',
-    targetAngle: 'Practical technical checklist for agency operations leads',
-  },
-  {
-    id: 'top-5',
-    title: 'Generic US Real Estate Agent Marketing Strategies (Not Localized to GCC)',
-    sourceUrl: 'https://example.com/us-generic-marketing',
-    relevanceScore: 1.8,
-    assignedFormat: 'skip',
-    targetAngle: 'Out of regional scope; archived from batch',
-  },
-]
+import { ResearchTopicRecord, ContentBatchRecord, CarouselSlide, VideoScene } from '@/lib/db/types'
 
 export default function ContentPage() {
-  const [topics, setTopics] = useState<ResearchTopic[]>(initialTopics)
+  const [batch, setBatch] = useState<ContentBatchRecord | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [activePreviewTopic, setActivePreviewTopic] = useState<ResearchTopicRecord | null>(null)
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0)
+  const [generatingDrafts, setGeneratingDrafts] = useState(false)
+  const [draftsSuccess, setDraftsSuccess] = useState<string | null>(null)
+  const [showIntakeModal, setShowIntakeModal] = useState(false)
 
+  // New batch form state
+  const [newBatchName, setNewBatchName] = useState('')
+  const [newTopics, setNewTopics] = useState<Array<{
+    title: string
+    sourceUrl: string
+    targetAngle: string
+    market: 'Qatar' | 'UAE' | 'KSA' | 'GCC-General'
+    relevanceScore: number
+    assignedFormat: 'static' | 'carousel' | 'video' | 'skip'
+  }>>([
+    { title: '', sourceUrl: '', targetAngle: '', market: 'Qatar', relevanceScore: 4.8, assignedFormat: 'static' },
+    { title: '', sourceUrl: '', targetAngle: '', market: 'UAE', relevanceScore: 4.6, assignedFormat: 'carousel' },
+    { title: '', sourceUrl: '', targetAngle: '', market: 'GCC-General', relevanceScore: 4.4, assignedFormat: 'video' },
+    { title: '', sourceUrl: '', targetAngle: '', market: 'UAE', relevanceScore: 4.2, assignedFormat: 'static' },
+    { title: '', sourceUrl: '', targetAngle: '', market: 'KSA', relevanceScore: 2.1, assignedFormat: 'skip' },
+  ])
+  const [intakeError, setIntakeError] = useState<string | null>(null)
+  const [submittingIntake, setSubmittingIntake] = useState(false)
+
+  async function loadTopics() {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/content/topics')
+      if (res.ok) {
+        const data = await res.json()
+        setBatch(data.batch)
+      }
+    } catch (err) {
+      console.error('Failed to load content topics:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadTopics()
+  }, [])
+
+  const topics = batch?.topics || []
   const staticCount = topics.filter(t => t.assignedFormat === 'static').length
   const carouselCount = topics.filter(t => t.assignedFormat === 'carousel').length
   const videoCount = topics.filter(t => t.assignedFormat === 'video').length
   const skipCount = topics.filter(t => t.assignedFormat === 'skip').length
 
-  function setAllocation(id: string, format: 'static' | 'carousel' | 'video' | 'skip') {
-    setTopics(prev =>
-      prev.map(t => (t.id === id ? { ...t, assignedFormat: format } : t))
-    )
+  const isRuleCompliant =
+    staticCount === 2 && carouselCount === 1 && videoCount === 1 && skipCount === 1
+
+  async function setAllocation(topicId: string, format: 'static' | 'carousel' | 'video' | 'skip') {
+    if (!batch) return
+
+    // Optimistic UI update
+    setBatch(prev => {
+      if (!prev) return null
+      return {
+        ...prev,
+        topics: prev.topics.map(t =>
+          t.id === topicId ? { ...t, assignedFormat: format } : t
+        ),
+      }
+    })
+
+    try {
+      await fetch('/api/content/topics', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: batch.id, topicId, format }),
+      })
+    } catch (err) {
+      console.error('Failed to update format:', err)
+      loadTopics()
+    }
+  }
+
+  function autoBalanceAllocation() {
+    if (!batch) return
+    const sorted = [...batch.topics].sort((a, b) => b.relevanceScore - a.relevanceScore)
+    // 1st: static, 2nd: static, 3rd: carousel, 4th: video, 5th: skip
+    if (sorted[0]) setAllocation(sorted[0].id, 'static')
+    if (sorted[1]) setAllocation(sorted[1].id, 'static')
+    if (sorted[2]) setAllocation(sorted[2].id, 'carousel')
+    if (sorted[3]) setAllocation(sorted[3].id, 'video')
+    if (sorted[4]) setAllocation(sorted[4].id, 'skip')
+  }
+
+  async function handleGenerateDrafts() {
+    if (!batch || generatingDrafts) return
+    setGeneratingDrafts(true)
+    setDraftsSuccess(null)
+
+    try {
+      const res = await fetch('/api/content/generate-drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: batch.id }),
+      })
+
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setDraftsSuccess(`Generated ${data.count} drafts and routed them to the Approvals Queue!`)
+        loadTopics()
+      }
+    } catch (err) {
+      console.error('Failed to generate drafts:', err)
+    } finally {
+      setGeneratingDrafts(false)
+    }
+  }
+
+  async function handleIntakeSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setIntakeError(null)
+
+    if (!newBatchName.trim()) {
+      setIntakeError('Please enter a batch name.')
+      return
+    }
+
+    // Validate URLs
+    for (let i = 0; i < 5; i++) {
+      if (!newTopics[i].title.trim()) {
+        setIntakeError(`Topic #${i + 1} must have a title.`)
+        return
+      }
+      try {
+        new URL(newTopics[i].sourceUrl)
+      } catch {
+        setIntakeError(`Topic #${i + 1} requires a valid URL (e.g. https://...).`)
+        return
+      }
+    }
+
+    setSubmittingIntake(true)
+    try {
+      const res = await fetch('/api/content/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newBatchName.trim(),
+          topics: newTopics,
+        }),
+      })
+
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setShowIntakeModal(false)
+        loadTopics()
+      } else {
+        setIntakeError(data.error || 'Failed to ingest batch.')
+      }
+    } catch (err: any) {
+      setIntakeError(err.message || 'Error submitting batch.')
+    } finally {
+      setSubmittingIntake(false)
+    }
   }
 
   return (
@@ -90,7 +199,7 @@ export default function ContentPage() {
             className="text-[11px] font-semibold tracking-[0.18em] uppercase mb-1.5"
             style={{ color: 'var(--text-muted)' }}
           >
-            AUTHRONIC / OPERATIONS
+            AUTHRONIC / OPERATIONS · PHASE 3
           </p>
           <h1
             className="text-2xl sm:text-3xl font-semibold mb-2"
@@ -99,11 +208,24 @@ export default function ContentPage() {
             Content Studio
           </h1>
           <p className="text-sm sm:text-base max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
-            From 5 researched topic ideas to publication-ready assets. Rule 5.1: Target allocation 2 static · 1 carousel · 1 video · 1 skip.
+            Turn 5 verified research topics into ready-to-publish assets. Rule 5.1: Target allocation 2 static · 1 carousel · 1 video · 1 skip.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => setShowIntakeModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors hover:bg-white/5 cursor-pointer"
+            style={{
+              background: 'var(--surface-1)',
+              border: '1px solid var(--border-soft)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <Plus size={14} style={{ color: 'var(--brand-orange)' }} />
+            <span>New Research Batch</span>
+          </button>
+
           <Link
             href="/content/calendar"
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors hover:bg-white/5"
@@ -116,118 +238,555 @@ export default function ContentPage() {
             <Calendar size={14} style={{ color: 'var(--brand-orange)' }} />
             <span>View Calendar</span>
           </Link>
-          <Link
-            href="/approvals"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-95"
+
+          <button
+            onClick={handleGenerateDrafts}
+            disabled={generatingDrafts}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-95 cursor-pointer disabled:opacity-60"
             style={{
               background: 'var(--brand-orange)',
               color: '#101110',
             }}
           >
-            <span>Review Queue</span>
-            <ArrowRight size={14} />
-          </Link>
+            {generatingDrafts ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            <span>Generate Asset Drafts</span>
+          </button>
         </div>
       </div>
 
-      {/* Allocation Summary Card */}
+      {/* Success Notification */}
+      {draftsSuccess && (
+        <div
+          className="p-4 rounded-xl text-xs flex items-center justify-between gap-3"
+          style={{ background: 'rgba(74, 222, 128, 0.1)', border: '1px solid rgba(74, 222, 128, 0.25)', color: '#4ade80' }}
+        >
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 size={16} />
+            <span>{draftsSuccess}</span>
+          </div>
+          <Link
+            href="/approvals"
+            className="underline font-semibold hover:opacity-80"
+          >
+            Go to Approvals Queue →
+          </Link>
+        </div>
+      )}
+
+      {/* Allocation Summary & Compliance Card */}
       <div
-        className="p-4 sm:p-5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        className="p-4 sm:p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4"
         style={{ background: 'var(--surface-1)', border: '1px solid var(--border-soft)' }}
       >
-        <div>
-          <div className="flex items-center gap-2 mb-1">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              Current Batch: batch-20261108-01
+              Batch: {batch?.name || 'Loading...'}
             </span>
-            <span className="text-xs px-2 py-0.5 rounded font-mono" style={{ background: 'var(--surface-2)', color: 'var(--brand-orange)' }}>
-              5 Topics Ingested
+            <span
+              className="text-[11px] px-2 py-0.5 rounded font-medium"
+              style={{
+                background: isRuleCompliant ? 'rgba(74, 222, 128, 0.12)' : 'rgba(247, 143, 30, 0.12)',
+                color: isRuleCompliant ? '#4ade80' : 'var(--brand-orange)',
+              }}
+            >
+              {isRuleCompliant ? 'Rule 5.1 Compliant' : 'Allocation Needed'}
             </span>
           </div>
-          <p className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Allocation Target Compliance:
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Formula Target: 2 Static Posts · 1 Carousel · 1 Video Script · 1 Skipped / Archived
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-          <span className="px-3 py-1 rounded-lg" style={{ background: 'var(--surface-2)', color: staticCount === 2 ? '#34D399' : 'var(--brand-orange)' }}>
-            {staticCount}/2 Static Posts
-          </span>
-          <span className="px-3 py-1 rounded-lg" style={{ background: 'var(--surface-2)', color: carouselCount === 1 ? '#34D399' : 'var(--brand-orange)' }}>
-            {carouselCount}/1 Carousel
-          </span>
-          <span className="px-3 py-1 rounded-lg" style={{ background: 'var(--surface-2)', color: videoCount === 1 ? '#34D399' : 'var(--brand-orange)' }}>
-            {videoCount}/1 Video
-          </span>
-          <span className="px-3 py-1 rounded-lg" style={{ background: 'var(--surface-2)', color: skipCount === 1 ? '#34D399' : 'var(--text-muted)' }}>
-            {skipCount}/1 Skipped
-          </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 font-mono text-xs">
+            <span
+              className="px-2.5 py-1 rounded-lg"
+              style={{
+                background: 'var(--surface-2)',
+                color: staticCount === 2 ? '#4ade80' : 'var(--brand-orange)',
+              }}
+            >
+              {staticCount}/2 Static
+            </span>
+            <span
+              className="px-2.5 py-1 rounded-lg"
+              style={{
+                background: 'var(--surface-2)',
+                color: carouselCount === 1 ? '#4ade80' : 'var(--brand-orange)',
+              }}
+            >
+              {carouselCount}/1 Carousel
+            </span>
+            <span
+              className="px-2.5 py-1 rounded-lg"
+              style={{
+                background: 'var(--surface-2)',
+                color: videoCount === 1 ? '#4ade80' : 'var(--brand-orange)',
+              }}
+            >
+              {videoCount}/1 Video
+            </span>
+            <span
+              className="px-2.5 py-1 rounded-lg"
+              style={{
+                background: 'var(--surface-2)',
+                color: skipCount === 1 ? '#4ade80' : 'var(--text-muted)',
+              }}
+            >
+              {skipCount}/1 Skip
+            </span>
+          </div>
+
+          {!isRuleCompliant && (
+            <button
+              onClick={autoBalanceAllocation}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-white/5 transition-colors cursor-pointer"
+              style={{ border: '1px solid var(--brand-orange)', color: 'var(--brand-orange)' }}
+              title="Auto-assign formats based on topic relevance scores"
+            >
+              <Sliders size={12} />
+              <span>Auto-Balance</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Topics List */}
       <div className="space-y-4">
-        {topics.map((topic, i) => (
-          <div
-            key={topic.id}
-            className="p-5 rounded-xl space-y-3 transition-colors"
-            style={{
-              background: 'var(--surface-1)',
-              border: '1px solid var(--border-soft)',
-            }}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-bold" style={{ color: 'var(--brand-orange)' }}>
-                  #{i + 1}
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded font-mono" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  Relevance: {topic.relevanceScore} / 5.0
-                </span>
+        {loading ? (
+          <div className="p-16 text-center text-xs flex items-center justify-center gap-2" style={{ color: 'var(--text-muted)' }}>
+            <Loader2 size={16} className="animate-spin text-[var(--brand-orange)]" />
+            <span>Loading research batch...</span>
+          </div>
+        ) : (
+          topics.map((topic, i) => (
+            <div
+              key={topic.id}
+              className="p-5 rounded-xl space-y-3 transition-colors"
+              style={{
+                background: 'var(--surface-1)',
+                border: '1px solid var(--border-soft)',
+              }}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-bold" style={{ color: 'var(--brand-orange)' }}>
+                    #{i + 1}
+                  </span>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded font-mono"
+                    style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                  >
+                    Relevance: {topic.relevanceScore} / 5.0
+                  </span>
+                  <span
+                    className="text-[11px] px-2 py-0.5 rounded font-semibold uppercase"
+                    style={{ background: 'rgba(247, 143, 30, 0.1)', color: 'var(--brand-orange)' }}
+                  >
+                    {topic.market}
+                  </span>
+                </div>
+
+                {/* Format selection buttons */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(['static', 'carousel', 'video', 'skip'] as const).map(fmt => {
+                    const isSelected = topic.assignedFormat === fmt
+                    return (
+                      <button
+                        key={fmt}
+                        onClick={() => setAllocation(topic.id, fmt)}
+                        className="px-2.5 py-1 rounded text-xs font-medium capitalize transition-all cursor-pointer"
+                        style={{
+                          background: isSelected ? 'var(--brand-orange)' : 'var(--surface-2)',
+                          color: isSelected ? '#101110' : 'var(--text-secondary)',
+                          fontWeight: isSelected ? 600 : 500,
+                        }}
+                      >
+                        {fmt === 'static' ? 'Static Post' : fmt}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
-              {/* Format selection buttons */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(['static', 'carousel', 'video', 'skip'] as const).map(fmt => {
-                  const isSelected = topic.assignedFormat === fmt
-                  return (
-                    <button
-                      key={fmt}
-                      onClick={() => setAllocation(topic.id, fmt)}
-                      className="px-2.5 py-1 rounded text-xs font-medium capitalize transition-all cursor-pointer"
+              <div>
+                <h2 className="text-sm sm:text-base font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+                  {topic.title}
+                </h2>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  <span className="font-semibold" style={{ color: 'var(--brand-orange)' }}>Angle:</span>{' '}
+                  {topic.targetAngle}
+                </p>
+              </div>
+
+              <div
+                className="pt-2.5 flex items-center justify-between text-xs flex-wrap gap-2"
+                style={{ borderTop: '1px solid var(--border-soft)' }}
+              >
+                <a
+                  href={topic.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] font-mono truncate max-w-sm sm:max-w-md hover:underline flex items-center gap-1"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <span>Source: {topic.sourceUrl}</span>
+                  <ExternalLink size={10} />
+                </a>
+
+                {topic.assignedFormat !== 'skip' && (
+                  <button
+                    onClick={() => {
+                      setActivePreviewTopic(topic)
+                      setActiveSlideIndex(0)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold hover:bg-white/5 transition-colors cursor-pointer"
+                    style={{ color: 'var(--brand-orange)', border: '1px solid var(--border-soft)' }}
+                  >
+                    <Eye size={12} />
+                    <span>Preview {topic.assignedFormat === 'carousel' ? 'Slides' : topic.assignedFormat === 'video' ? 'Script' : 'Draft'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Format-Specific Review Drawer Modal */}
+      {activePreviewTopic && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div
+            className="w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            style={{ background: 'var(--surface-1)', border: '1px solid var(--border-soft)' }}
+          >
+            {/* Drawer Header */}
+            <div
+              className="p-5 flex items-center justify-between border-b"
+              style={{ borderColor: 'var(--border-soft)', background: 'var(--surface-2)' }}
+            >
+              <div>
+                <span
+                  className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded"
+                  style={{ background: 'rgba(247, 143, 30, 0.15)', color: 'var(--brand-orange)' }}
+                >
+                  {activePreviewTopic.assignedFormat.toUpperCase()} DRAFT PREVIEW
+                </span>
+                <h3 className="text-base font-semibold mt-1" style={{ color: 'var(--text-primary)' }}>
+                  {activePreviewTopic.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setActivePreviewTopic(null)}
+                className="p-2 rounded-lg hover:bg-white/5 cursor-pointer"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Drawer Content */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Carousel Format Viewer */}
+              {activePreviewTopic.assignedFormat === 'carousel' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                      Slide {activeSlideIndex + 1} of {activePreviewTopic.slides?.length || 7}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setActiveSlideIndex(prev => Math.max(0, prev - 1))}
+                        disabled={activeSlideIndex === 0}
+                        className="p-1.5 rounded-lg border hover:bg-white/5 cursor-pointer disabled:opacity-30"
+                        style={{ borderColor: 'var(--border-soft)', color: 'var(--text-primary)' }}
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button
+                        onClick={() =>
+                          setActiveSlideIndex(prev =>
+                            Math.min((activePreviewTopic.slides?.length || 7) - 1, prev + 1)
+                          )
+                        }
+                        disabled={
+                          activeSlideIndex === (activePreviewTopic.slides?.length || 7) - 1
+                        }
+                        className="p-1.5 rounded-lg border hover:bg-white/5 cursor-pointer disabled:opacity-30"
+                        style={{ borderColor: 'var(--border-soft)', color: 'var(--text-primary)' }}
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Visual Slide Frame */}
+                  {activePreviewTopic.slides?.[activeSlideIndex] && (
+                    <div
+                      className="aspect-[4/3] rounded-xl p-8 flex flex-col justify-between shadow-inner relative overflow-hidden"
                       style={{
-                        background: isSelected ? 'var(--brand-orange)' : 'var(--surface-2)',
-                        color: isSelected ? '#101110' : 'var(--text-secondary)',
-                        fontWeight: isSelected ? 600 : 500,
+                        background: 'linear-gradient(135deg, #181918 0%, #0F100F 100%)',
+                        border: '2px solid rgba(247, 143, 30, 0.3)',
                       }}
                     >
-                      {fmt === 'static' ? 'Static Post' : fmt}
-                    </button>
-                  )
-                })}
-              </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-mono tracking-widest text-zinc-400 uppercase">
+                          AUTHRONIC · OFF-PLAN LEAD AUTOMATION
+                        </span>
+                        <span
+                          className="px-2 py-0.5 rounded text-[10px] font-mono font-bold"
+                          style={{ background: 'var(--brand-orange)', color: '#101110' }}
+                        >
+                          SLIDE 0{activeSlideIndex + 1}
+                        </span>
+                      </div>
+
+                      <div className="space-y-3 my-auto">
+                        <h2 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
+                          {activePreviewTopic.slides[activeSlideIndex].headline}
+                        </h2>
+                        <p className="text-sm sm:text-base leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                          {activePreviewTopic.slides[activeSlideIndex].bodyText}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-white/10 text-[11px] text-zinc-500 font-mono">
+                        <span>{activePreviewTopic.slides[activeSlideIndex].visualNote}</span>
+                        <span>Swipe ➔</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Video Script Viewer */}
+              {activePreviewTopic.assignedFormat === 'video' && (
+                <div className="space-y-4">
+                  <div className="p-3 rounded-lg text-xs" style={{ background: 'rgba(247, 143, 30, 0.08)', border: '1px solid rgba(247, 143, 30, 0.2)' }}>
+                    <span className="font-semibold" style={{ color: 'var(--brand-orange)' }}>
+                      60-Second Short-Form Avatar Video Script
+                    </span>
+                    <p className="text-zinc-400 mt-0.5">
+                      Targeted pacing: 140 words per minute with synchronized on-screen caption cuts.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {(activePreviewTopic.scenes || []).map(scene => (
+                      <div
+                        key={scene.sceneNumber}
+                        className="p-4 rounded-xl space-y-2"
+                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border-soft)' }}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-mono font-bold" style={{ color: 'var(--brand-orange)' }}>
+                            Scene #{scene.sceneNumber} · {scene.timestampRange}
+                          </span>
+                          <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                            {scene.visualAction}
+                          </span>
+                        </div>
+                        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                          "{scene.speakerText}"
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Static Post Viewer */}
+              {activePreviewTopic.assignedFormat === 'static' && (
+                <div className="space-y-4">
+                  <div className="p-5 rounded-xl space-y-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-soft)' }}>
+                    <div className="text-xs font-mono font-bold" style={{ color: 'var(--brand-orange)' }}>
+                      HOOK HEADLINE:
+                    </div>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      {activePreviewTopic.staticCopy?.hook}
+                    </p>
+
+                    <div className="text-xs font-mono font-bold pt-2" style={{ color: 'var(--brand-orange)' }}>
+                      BODY COPY:
+                    </div>
+                    <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: 'var(--text-secondary)' }}>
+                      {activePreviewTopic.staticCopy?.body}
+                    </p>
+
+                    <div className="text-xs font-mono font-bold pt-2" style={{ color: 'var(--brand-orange)' }}>
+                      CALL TO ACTION & CITATIONS:
+                    </div>
+                    <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>
+                      {activePreviewTopic.staticCopy?.cta}
+                    </p>
+
+                    <div className="flex flex-wrap gap-1.5 pt-2">
+                      {activePreviewTopic.staticCopy?.hashtags?.map(h => (
+                        <span key={h} className="text-xs font-mono" style={{ color: 'var(--brand-orange)' }}>
+                          {h}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div>
-              <h2 className="text-sm sm:text-base font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                {topic.title}
-              </h2>
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                <span className="font-semibold" style={{ color: 'var(--brand-orange)' }}>Angle:</span> {topic.targetAngle}
-              </p>
-            </div>
-
-            <div className="pt-2 flex items-center justify-between text-xs" style={{ borderTop: '1px solid var(--border-soft)' }}>
-              <span className="text-[11px] font-mono truncate max-w-md" style={{ color: 'var(--text-muted)' }}>
-                Source: {topic.sourceUrl}
-              </span>
-              <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-                Status: Verified Hypothesis
-              </span>
+            {/* Drawer Footer */}
+            <div
+              className="p-4 border-t flex items-center justify-end gap-3"
+              style={{ borderColor: 'var(--border-soft)', background: 'var(--surface-2)' }}
+            >
+              <button
+                onClick={() => setActivePreviewTopic(null)}
+                className="px-4 py-2 rounded-lg text-xs font-semibold hover:bg-white/5 cursor-pointer"
+                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-soft)' }}
+              >
+                Close Preview
+              </button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* New Research Batch Intake Modal */}
+      {showIntakeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div
+            className="w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            style={{ background: 'var(--surface-1)', border: '1px solid var(--border-soft)' }}
+          >
+            <div
+              className="p-5 flex items-center justify-between border-b"
+              style={{ borderColor: 'var(--border-soft)', background: 'var(--surface-2)' }}
+            >
+              <div>
+                <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Ingest 5-Topic Research Batch
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  Rule 5.1: Provide exactly 5 verified market hypotheses with active source URLs.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowIntakeModal(false)}
+                className="p-2 rounded-lg hover:bg-white/5 cursor-pointer"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleIntakeSubmit} className="p-6 overflow-y-auto space-y-4">
+              {intakeError && (
+                <div className="p-3 rounded-lg text-xs flex items-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20">
+                  <AlertCircle size={14} />
+                  <span>{intakeError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Batch Name:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. GCC PropTech Weekly Research · Nov 2026"
+                  value={newBatchName}
+                  onChange={e => setNewBatchName(e.target.value)}
+                  className="w-full h-9 px-3 rounded-lg text-xs border focus:outline-none"
+                  style={{
+                    background: 'var(--surface-2)',
+                    borderColor: 'var(--border-soft)',
+                    color: 'var(--text-primary)',
+                  }}
+                  required
+                />
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--brand-orange)' }}>
+                  5 Research Topics:
+                </span>
+                {newTopics.map((t, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl space-y-2"
+                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-soft)' }}
+                  >
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="font-bold text-[var(--brand-orange)]">Topic #{idx + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={t.market}
+                          onChange={e => {
+                            const updated = [...newTopics]
+                            updated[idx].market = e.target.value as any
+                            setNewTopics(updated)
+                          }}
+                          className="h-7 px-2 rounded text-[11px] border focus:outline-none bg-[var(--surface-1)] border-[var(--border-soft)] text-zinc-300"
+                        >
+                          <option value="Qatar">Qatar</option>
+                          <option value="UAE">UAE</option>
+                          <option value="KSA">KSA</option>
+                          <option value="GCC-General">GCC-General</option>
+                        </select>
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Topic Title / Finding"
+                      value={t.title}
+                      onChange={e => {
+                        const updated = [...newTopics]
+                        updated[idx].title = e.target.value
+                        setNewTopics(updated)
+                      }}
+                      className="w-full h-8 px-2.5 rounded text-xs border focus:outline-none bg-[var(--surface-1)] border-[var(--border-soft)] text-zinc-200"
+                      required
+                    />
+                    <input
+                      type="url"
+                      placeholder="Source URL (e.g. https://...)"
+                      value={t.sourceUrl}
+                      onChange={e => {
+                        const updated = [...newTopics]
+                        updated[idx].sourceUrl = e.target.value
+                        setNewTopics(updated)
+                      }}
+                      className="w-full h-8 px-2.5 rounded text-xs border focus:outline-none bg-[var(--surface-1)] border-[var(--border-soft)] text-zinc-200"
+                      required
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border-soft)]">
+                <button
+                  type="button"
+                  onClick={() => setShowIntakeModal(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold hover:bg-white/5 cursor-pointer text-zinc-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingIntake}
+                  className="px-5 py-2 rounded-lg text-xs font-semibold bg-[var(--brand-orange)] text-[#101110] hover:opacity-90 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {submittingIntake && <Loader2 size={13} className="animate-spin" />}
+                  <span>Save & Ingest Batch</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
