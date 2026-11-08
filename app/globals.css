@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Outfit';
+  src: url('/fonts/outfit-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --font-outfit: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Brand colors */
+  --color-brand-orange: #F78F1E;
+  --color-brand-orange-bright: #FF981F;
+  --color-brand-orange-deep: #E95D24;
+
+  /* Surface colors */
+  --color-surface-1: #1A1B19;
+  --color-surface-2: #22231F;
+  --color-surface-3: #2A2B27;
+
+  /* Background colors */
+  --color-bg-base: #101110;
+  --color-bg-dark: #0B0B0B;
+  --color-bg-shell: #161616;
+
+  /* Border radius */
+  --radius-sm: 6px;
+  --radius-DEFAULT: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+:root {
+  /* Brand */
+  --brand-orange: #F78F1E;
+  --brand-orange-bright: #FF981F;
+  --brand-orange-deep: #E95D24;
+
+  /* Backgrounds */
+  --bg-base: #101110;
+  --bg-dark: #0B0B0B;
+  --bg-shell: #161616;
+
+  /* Surfaces */
+  --surface-1: #1A1B19;
+  --surface-2: #22231F;
+  --surface-3: #2A2B27;
+
+  /* Text */
+  --text-primary: #F3F1ED;
+  --text-secondary: #BABBB5;
+  --text-muted: #8E928C;
+
+  /* Borders */
+  --border-soft: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Interaction */
+  --focus-ring: #FFB35C;
+
+  /* Layout */
+  --sidebar-width: 248px;
+  --topbar-height: 64px;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--bg-shell);
+  color: var(--text-primary);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(247, 143, 30, 0.3);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand-orange); }
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.text-gradient-orange {
+  background: linear-gradient(180deg, #F78F1E 0%, #E95D24 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
